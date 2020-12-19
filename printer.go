@@ -23,7 +23,6 @@ func (sl siteLinks) Print(wr io.Writer) error {
 	sort.Strings(roots)
 	var err error
 	for _, root := range roots {
-		// print in yaml format
 		if _, err = fmt.Fprintf(wr, "%s\n", root); err != nil {
 			return err
 		}
