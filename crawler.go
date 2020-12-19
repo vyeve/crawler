@@ -21,14 +21,14 @@ type linkWrapper struct {
 }
 
 func New(initLink string) (Crawler, error) {
-	s := &crawlerImp{
+	cr := &crawlerImp{
 		initLink: initLink,
 		siteCh:   make(chan linkWrapper, 10),
 		visited:  make(map[string]bool),
 		links:    make(siteLinks),
 	}
 	// extract domain
-	s.domain = extractDomain(initLink)
+	cr.domain = extractDomain(initLink)
 	// validate if link is alive
 	resp, err := http.Get(initLink)
 	if err != nil {
@@ -37,21 +37,21 @@ func New(initLink string) (Crawler, error) {
 	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("bad status: %d", resp.StatusCode)
 	}
-	return s, nil
+	return cr, nil
 }
 
-func (ci *crawlerImp) Crawl() Printer {
+func (cr *crawlerImp) Crawl() Printer {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
-	ci.setupLink(ci.initLink)
-	go ci.walkLinks(ci.initLink, wg)
+	cr.setupLink(cr.initLink)
+	go cr.walkLinks(cr.initLink, wg)
 	go func() {
 		wg.Wait()
-		close(ci.siteCh)
+		close(cr.siteCh)
 	}()
 
-	for links := range ci.siteCh {
-		ci.links.addLinkToSite(links.rootURL, links.linkURL)
+	for links := range cr.siteCh {
+		cr.links.addLinkToSite(links.rootURL, links.linkURL)
 	}
-	return ci.links
+	return cr.links
 }

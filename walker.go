@@ -9,7 +9,7 @@ import (
 	goQuery "github.com/PuerkitoBio/goquery"
 )
 
-func (ci *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
+func (cr *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	resp, err := http.Get(path)
 	if err != nil {
@@ -24,7 +24,7 @@ func (ci *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 
 	doc, err := goQuery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		ci.siteCh <- linkWrapper{
+		cr.siteCh <- linkWrapper{
 			rootURL: path,
 		}
 		return
@@ -32,31 +32,31 @@ func (ci *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 
 	for element, attributes := range htmlElements {
 		for _, attr := range attributes {
-			ci.lookup(doc, element, attr, path, wg)
+			cr.lookup(doc, element, attr, path, wg)
 		}
 	}
 }
 
-func (ci *crawlerImp) lookup(doc *goQuery.Document, element, attr, path string, wg *sync.WaitGroup) {
+func (cr *crawlerImp) lookup(doc *goQuery.Document, element, attr, path string, wg *sync.WaitGroup) {
 	doc.Find(element).Each(func(i int, sel *goQuery.Selection) {
 		name, _ := sel.Attr(attr)
 		if !validateLink(name) {
 			return
 		}
 		path = strings.TrimSuffix(path, "/")
-		ci.siteCh <- linkWrapper{
+		cr.siteCh <- linkWrapper{
 			rootURL: path,
 			linkURL: name,
 		}
-		if ci.allowedToProcess(name) {
+		if cr.allowedToProcess(name) {
 			wg.Add(1)
-			go ci.walkLinks(name, wg)
+			go cr.walkLinks(name, wg)
 		}
 	})
 }
 
 // allowedToProcess is like a lock, to prevent duplicate visiting the same link
-func (ci *crawlerImp) allowedToProcess(path string) /*allowed*/ bool {
+func (cr *crawlerImp) allowedToProcess(path string) /*allowed*/ bool {
 	link, err := url.Parse(path)
 	if err != nil {
 		return false
@@ -67,25 +67,25 @@ func (ci *crawlerImp) allowedToProcess(path string) /*allowed*/ bool {
 	}
 	path = link.Host + link.Path
 
-	if !strings.HasPrefix(strings.TrimPrefix(path, wwwKey), ci.domain) {
+	if !strings.HasPrefix(strings.TrimPrefix(path, wwwKey), cr.domain) {
 		// host is not the same as domain
 		return false
 	}
-	return ci.setupLink(path)
+	return cr.setupLink(path)
 }
 
-func (ci *crawlerImp) setupLink(path string) bool {
-	ci.Lock()
-	defer ci.Unlock()
-	visited := ci.visited[path]
+func (cr *crawlerImp) setupLink(path string) bool {
+	cr.Lock()
+	defer cr.Unlock()
+	visited := cr.visited[path]
 	if visited {
 		// site already visited
 		return false
 	}
-	ci.visited[path] = true
+	cr.visited[path] = true
 	if !strings.HasPrefix(path, wwwKey) {
 		// to prevent visit link "google.com" in case "www.google.com" already visited
-		return !ci.visited[wwwKey+path]
+		return !cr.visited[wwwKey+path]
 	}
 
 	return true
