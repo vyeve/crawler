@@ -24,7 +24,7 @@ func (sl siteLinks) Print(wr io.Writer) error {
 	var err error
 	for _, root := range roots {
 		// print in yaml format
-		if _, err = fmt.Fprintf(wr, "%s:\n", root); err != nil {
+		if _, err = fmt.Fprintf(wr, "%s\n", root); err != nil {
 			return err
 		}
 		for _, link := range sortLinks(sl[root]) {
