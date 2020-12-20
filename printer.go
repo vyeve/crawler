@@ -6,8 +6,11 @@ import (
 	"sort"
 )
 
+// siteLinks is a container to store visited links and
+// all links those were found in it
 type siteLinks map[string]map[string]struct{}
 
+// addLinkToSite stores links in the container
 func (sl siteLinks) addLinkToSite(site, link string) {
 	if _, ok := sl[site]; !ok {
 		sl[site] = make(map[string]struct{})
@@ -15,6 +18,7 @@ func (sl siteLinks) addLinkToSite(site, link string) {
 	sl[site][link] = struct{}{}
 }
 
+// Print returns sorted links/sublinks to Writer
 func (sl siteLinks) Print(wr io.Writer) error {
 	roots := make([]string, 0, len(sl))
 	for r := range sl {
@@ -35,6 +39,7 @@ func (sl siteLinks) Print(wr io.Writer) error {
 	return nil
 }
 
+// sortLinks sorts links by alphabet ascending
 func sortLinks(links map[string]struct{}) []string {
 	out := make([]string, 0, len(links))
 	for link := range links {

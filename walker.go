@@ -10,6 +10,7 @@ import (
 	goQuery "github.com/PuerkitoBio/goquery"
 )
 
+// walkLinks requests given path, validates response and parse HTML
 func (cr *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	resp, err := http.Get(path)
@@ -24,6 +25,7 @@ func (cr *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 	cr.parseHTML(resp.Body, wg, path)
 }
 
+// parseHTML parses given response body to lookup HTML elements, which contain external URL
 func (cr *crawlerImp) parseHTML(body io.ReadCloser, wg *sync.WaitGroup, path string) {
 	defer body.Close() // nolint: errcheck
 
@@ -39,6 +41,8 @@ func (cr *crawlerImp) parseHTML(body io.ReadCloser, wg *sync.WaitGroup, path str
 	}
 }
 
+// lookup tries to find HTML's elements which contain URL,  according to the W3C's list of
+// HTML attributes. In case link is found, it launch walkLinks in separate goroutine
 func (cr *crawlerImp) lookup(doc *goQuery.Document, element, attr, path string, wg *sync.WaitGroup) {
 	doc.Find(element).Each(func(i int, sel *goQuery.Selection) {
 		name, exist := sel.Attr(attr)
@@ -76,6 +80,7 @@ func (cr *crawlerImp) allowedToProcess(path string) /*allowed*/ bool {
 	return cr.setupLink(path)
 }
 
+// setupLink sets given link to prevent duplication
 func (cr *crawlerImp) setupLink(path string) bool {
 	cr.Lock()
 	defer cr.Unlock()

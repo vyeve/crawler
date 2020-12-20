@@ -7,7 +7,7 @@ const (
 )
 
 // List of HTML tag attributes which have a URL value:
-// https://stackoverflow.com/questions/2725156/complete-list-of-html-tag-attributes-which-have-a-url-value
+// Source: https://stackoverflow.com/questions/2725156/complete-list-of-html-tag-attributes-which-have-a-url-value
 var htmlElements = map[string][]string{
 	"a":          {"href"},
 	"applet":     {"codebase"},

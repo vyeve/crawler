@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// crawlerImp is a struct which implements Crawler interface
 type crawlerImp struct {
 	sync.RWMutex
 	initLink string
@@ -15,11 +16,13 @@ type crawlerImp struct {
 	siteCh   chan linkWrapper
 }
 
+// linkWrapper is a container to communicate scanned links through channel
 type linkWrapper struct {
 	rootURL string
 	linkURL string
 }
 
+// New initialize Crawler
 func New(initLink string) (Crawler, error) {
 	cr := &crawlerImp{
 		initLink: initLink,
@@ -40,6 +43,7 @@ func New(initLink string) (Crawler, error) {
 	return cr, nil
 }
 
+// Crawl scans given link
 func (cr *crawlerImp) Crawl() Printer {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
