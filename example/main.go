@@ -17,7 +17,7 @@ func main() {
 
 	tn := time.Now()
 	defer func() {
-		fmt.Printf("\n\tTotal time: %s\n", time.Since(tn))
+		fmt.Printf("\nTotal time: %s\n", time.Since(tn))
 	}()
 	f, err := os.OpenFile("result.txt", os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
