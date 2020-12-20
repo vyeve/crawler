@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,13 +21,14 @@ func (cr *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 		// bad status
 		return
 	}
-	defer resp.Body.Close() // nolint: errcheck
+	cr.parseHTML(resp.Body, wg, path)
+}
 
-	doc, err := goQuery.NewDocumentFromReader(resp.Body)
+func (cr *crawlerImp) parseHTML(body io.ReadCloser, wg *sync.WaitGroup, path string) {
+	defer body.Close() // nolint: errcheck
+
+	doc, err := goQuery.NewDocumentFromReader(body)
 	if err != nil {
-		cr.siteCh <- linkWrapper{
-			rootURL: path,
-		}
 		return
 	}
 
@@ -39,8 +41,8 @@ func (cr *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 
 func (cr *crawlerImp) lookup(doc *goQuery.Document, element, attr, path string, wg *sync.WaitGroup) {
 	doc.Find(element).Each(func(i int, sel *goQuery.Selection) {
-		name, _ := sel.Attr(attr)
-		if !validateLink(name) {
+		name, exist := sel.Attr(attr)
+		if !exist || !validateLink(name) {
 			return
 		}
 		path = strings.TrimSuffix(path, "/")
