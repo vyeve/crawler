@@ -18,10 +18,12 @@ func TestCrawlerWalkGetBadStatusCode(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	cr := &crawlerImp{
-		initLink: link,
-		siteCh:   make(chan linkWrapper, 10),
-		visited:  make(map[string]bool),
-		links:    make(siteLinks),
+		initLink:  link,
+		siteCh:    make(chan linkWrapper, 10),
+		visited:   make(map[string]bool),
+		links:     make(siteLinks),
+		semaphore: make(chan struct{}, 1),
+		scheme:    "https://",
 	}
 	httpmock.Reset()
 	httpmock.RegisterResponder(http.MethodGet, link,
@@ -30,6 +32,7 @@ func TestCrawlerWalkGetBadStatusCode(t *testing.T) {
 	go func() {
 		wg.Wait()
 		close(cr.siteCh)
+		close(cr.semaphore)
 	}()
 	_, opened := <-cr.siteCh
 	if opened {
@@ -52,49 +55,51 @@ func TestCrawler_parseHTML(t *testing.T) {
 
 func TestCrawler_allowedToProcess(t *testing.T) {
 	testCases := []struct {
-		name string
-		path string
-		exp  bool
+		name   string
+		domain string
+		path   string
+		exp    bool
 	}{
 		{
-			name: "test with parse URL error",
-			path: string([]byte{0x7f}),
-			exp:  false,
+			name:   "test with link to file",
+			domain: "test.com",
+			path:   "/foo/bar/index.html",
+			exp:    false,
 		},
 		{
-			name: "test with link to file",
-			path: "https://test.com/foo/bar/index.html",
-			exp:  false,
+			name:   "test with another domain",
+			domain: "www.test.test",
+			path:   "/foo/bar/",
+			exp:    false,
 		},
 		{
-			name: "test with another domain",
-			path: "https://www.test.test/foo/bar/",
-			exp:  false,
+			name:   "test with already visited site",
+			domain: "www.test.com",
+			path:   "/foo/",
+			exp:    false,
 		},
 		{
-			name: "test with already visited site",
-			path: "https://www.test.com/foo/",
-			exp:  false,
+			name:   "test with already visited www site",
+			domain: "test.com",
+			path:   "/foo/",
+			exp:    false,
 		},
 		{
-			name: "test with already visited www site",
-			path: "https://test.com/foo/",
-			exp:  false,
-		},
-		{
-			name: "test with OK",
-			path: "https://www.test.com/golang/",
-			exp:  true,
+			name:   "test with OK",
+			domain: "www.test.com",
+			path:   "/golang/",
+			exp:    true,
 		},
 	}
 	cr := &crawlerImp{
 		visited: make(map[string]bool),
 		domain:  "test.com",
+		scheme:  "https://",
 	}
 	cr.visited["www.test.com/foo/"] = true
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			res := cr.allowedToProcess(tc.path)
+			res := cr.allowedToProcess(tc.domain, tc.path)
 			if tc.exp != res {
 				t.Errorf("wrong result for %s. Expected: %t, actual: %t", tc.path, tc.exp, res)
 			}

@@ -61,6 +61,7 @@ func TestNewWithGetError(t *testing.T) {
 	if err == nil {
 		t.Error("expected not <nil> error")
 	}
+	_, err = New(string([]byte{0x7f}))
 }
 
 func TestCrawlerCrawl(t *testing.T) {
@@ -68,10 +69,11 @@ func TestCrawlerCrawl(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 	link := "https://foo.bar"
 	cr := &crawlerImp{
-		initLink: link,
-		siteCh:   make(chan linkWrapper, 10),
-		visited:  make(map[string]bool),
-		links:    make(siteLinks),
+		initLink:  link,
+		siteCh:    make(chan linkWrapper, 10),
+		semaphore: make(chan struct{}, 1),
+		visited:   make(map[string]bool),
+		links:     make(siteLinks),
 	}
 
 	doc1 := `
@@ -86,9 +88,100 @@ func TestCrawlerCrawl(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected result: %v", cr.links)
 	}
-	_, ok = visited["https://test.foo.bar/"]
+	_, ok = visited["https://test.foo.bar"]
 	if !ok {
 		t.Errorf("unexpected result: %v", visited)
 	}
+}
 
+func TestCrawlerCrawlEmptyHost(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	link := "https://foo.bar"
+	cr := &crawlerImp{
+		initLink:  link,
+		scheme:    "https://",
+		domain:    "foo.bar",
+		siteCh:    make(chan linkWrapper, 10),
+		semaphore: make(chan struct{}, 1),
+		visited:   make(map[string]bool),
+		links:     make(siteLinks),
+	}
+
+	doc1 := `
+	<a class="Button tour" href="/test/foo/bar/"
+	title="Playground Go from your browser">Tour</a>
+	`
+	httpmock.Reset()
+	httpmock.RegisterResponder(http.MethodGet, link,
+		httpmock.NewStringResponder(http.StatusOK, doc1))
+	cr.Crawl()
+	visited, ok := cr.links["https://foo.bar"]
+	if !ok {
+		t.Fatalf("unexpected result: %v", cr.links)
+	}
+	_, ok = visited["https://foo.bar/test/foo/bar"]
+	if !ok {
+		t.Errorf("unexpected result: %v", visited)
+	}
+}
+
+func TestCrawlerCrawlEmptyScheme(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	link := "https://foo.bar"
+	cr := &crawlerImp{
+		initLink:  link,
+		scheme:    "https://",
+		domain:    "foo.bar",
+		siteCh:    make(chan linkWrapper, 10),
+		semaphore: make(chan struct{}, 1),
+		visited:   make(map[string]bool),
+		links:     make(siteLinks),
+	}
+
+	doc1 := `
+	<a class="Button tour" href="//test.foo/bar/"
+	title="Playground Go from your browser">Tour</a>
+	`
+	httpmock.Reset()
+	httpmock.RegisterResponder(http.MethodGet, link,
+		httpmock.NewStringResponder(http.StatusOK, doc1))
+	cr.Crawl()
+	visited, ok := cr.links["https://foo.bar"]
+	if !ok {
+		t.Fatalf("unexpected result: %v", cr.links)
+	}
+	_, ok = visited["https://test.foo/bar"]
+	if !ok {
+		t.Errorf("unexpected result: %v", visited)
+	}
+}
+
+func TestCrawlerCrawlURLError(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	link := "https://foo.bar"
+	cr := &crawlerImp{
+		initLink:  link,
+		scheme:    "https://",
+		domain:    "foo.bar",
+		siteCh:    make(chan linkWrapper, 10),
+		semaphore: make(chan struct{}, 1),
+		visited:   make(map[string]bool),
+		links:     make(siteLinks),
+	}
+
+	doc1 := `
+	<a class="Button tour" href="` + string([]byte{0x7f}) + `"
+	title="Playground Go from your browser">Tour</a>
+	`
+	httpmock.Reset()
+	httpmock.RegisterResponder(http.MethodGet, link,
+		httpmock.NewStringResponder(http.StatusOK, doc1))
+	cr.Crawl()
+	_, ok := cr.links["https://foo.bar"]
+	if ok {
+		t.Fatalf("unexpected result: %v", cr.links)
+	}
 }
