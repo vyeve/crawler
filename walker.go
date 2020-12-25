@@ -13,6 +13,10 @@ import (
 // walkLinks requests given path, validates response and parse HTML
 func (cr *crawlerImp) walkLinks(path string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	cr.semaphore <- struct{}{}
+	defer func() {
+		<-cr.semaphore
+	}()
 	resp, err := http.Get(path)
 	if err != nil {
 		// TODO: should we log errors???
@@ -46,15 +50,34 @@ func (cr *crawlerImp) parseHTML(body io.ReadCloser, wg *sync.WaitGroup, path str
 func (cr *crawlerImp) lookup(doc *goQuery.Document, element, attr, path string, wg *sync.WaitGroup) {
 	doc.Find(element).Each(func(i int, sel *goQuery.Selection) {
 		name, exist := sel.Attr(attr)
-		if !exist || !validateLink(name) {
+		if !exist {
 			return
 		}
-		path = strings.TrimSuffix(path, "/")
+		link, err := url.Parse(name)
+		if err != nil {
+			return
+		}
+		var domain string
+		if len(link.Host) == 0 {
+			domain = cr.domain
+			name = cr.scheme + cr.domain + link.Path
+		} else {
+			domain = link.Host
+			var scheme string
+			if len(link.Scheme) == 0 {
+				scheme = cr.scheme
+			} else {
+				scheme = link.Scheme + "://"
+			}
+			name = scheme + link.Host + link.Path
+		}
+
+		name = strings.TrimSuffix(name, "/")
 		cr.siteCh <- linkWrapper{
 			rootURL: path,
 			linkURL: name,
 		}
-		if cr.allowedToProcess(name) {
+		if cr.allowedToProcess(domain, link.Path) {
 			wg.Add(1)
 			go cr.walkLinks(name, wg)
 		}
@@ -62,22 +85,17 @@ func (cr *crawlerImp) lookup(doc *goQuery.Document, element, attr, path string, 
 }
 
 // allowedToProcess is like a lock, to prevent duplicate visiting the same link
-func (cr *crawlerImp) allowedToProcess(path string) /*allowed*/ bool {
-	link, err := url.Parse(path)
-	if err != nil {
-		return false
-	}
-	if strings.Index(link.Path, ".") > 0 {
+func (cr *crawlerImp) allowedToProcess(domain, path string) /*allowed*/ bool {
+	if strings.Index(path, ".") > 0 {
 		// means that path contains link to static file
 		return false
 	}
-	path = link.Host + link.Path
 
-	if !strings.HasPrefix(strings.TrimPrefix(path, wwwKey), cr.domain) {
+	if !strings.HasPrefix(strings.TrimPrefix(domain, wwwKey), cr.domain) {
 		// host is not the same as domain
 		return false
 	}
-	return cr.setupLink(path)
+	return cr.setupLink(domain + path)
 }
 
 // setupLink sets given link to prevent duplication

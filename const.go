@@ -6,6 +6,10 @@ const (
 	wwwKey   = "www."
 )
 
+const (
+	maxRoutines = 20
+)
+
 // List of HTML tag attributes which have a URL value:
 // Source: https://stackoverflow.com/questions/2725156/complete-list-of-html-tag-attributes-which-have-a-url-value
 var htmlElements = map[string][]string{

@@ -9,11 +9,13 @@ import (
 // crawlerImp is a struct which implements Crawler interface
 type crawlerImp struct {
 	sync.RWMutex
-	initLink string
-	domain   string
-	visited  map[string]bool
-	links    siteLinks
-	siteCh   chan linkWrapper
+	initLink  string
+	scheme    string
+	domain    string
+	visited   map[string]bool
+	links     siteLinks
+	siteCh    chan linkWrapper
+	semaphore chan struct{}
 }
 
 // linkWrapper is a container to communicate scanned links through channel
@@ -25,13 +27,18 @@ type linkWrapper struct {
 // New initialize Crawler
 func New(initLink string) (Crawler, error) {
 	cr := &crawlerImp{
-		initLink: initLink,
-		siteCh:   make(chan linkWrapper, 10),
-		visited:  make(map[string]bool),
-		links:    make(siteLinks),
+		initLink:  initLink,
+		siteCh:    make(chan linkWrapper, 10),
+		visited:   make(map[string]bool),
+		links:     make(siteLinks),
+		semaphore: make(chan struct{}, maxRoutines),
 	}
+	var err error
 	// extract domain
-	cr.domain = extractDomain(initLink)
+	cr.scheme, cr.domain, err = extractDomain(initLink)
+	if err != nil {
+		return nil, err
+	}
 	// validate if link is alive
 	resp, err := http.Get(initLink)
 	if err != nil {
@@ -52,6 +59,7 @@ func (cr *crawlerImp) Crawl() Printer {
 	go func() {
 		wg.Wait()
 		close(cr.siteCh)
+		close(cr.semaphore)
 	}()
 
 	for links := range cr.siteCh {
